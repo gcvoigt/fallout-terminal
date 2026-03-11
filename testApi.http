@@ -1,2 +1,2 @@
 POST http://localhost:8000/answer?answer=GATO HTTP/1.1
-x-token: 6gVubef7OeASYvYzbgBxL
+x-token: DR60RK4dI-k3HA5ruMhOL

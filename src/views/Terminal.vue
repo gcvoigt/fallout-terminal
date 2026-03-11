@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { getWords } from "../services/apiWords";
+import { getWords, checkWord } from "../services/apiWords";
 import { specialCharacters } from "../constants/special_chars";
 import { memoryAddresses } from "../constants/memory_address";
 import { getRandomNumber } from "../utils/utils";
@@ -385,11 +385,28 @@ function handleKeyDown(e) {
       }
       e.preventDefault();
       break;
+    case "Enter":
+      sendAnswer();
+      e.preventDefault();
+      break;
   }
   const char = selectedChar();
   if (char) {
     findSecurityGaps(char, cursorRow.value, cursorCol.value);
     findWordAtCursor();
+  }
+}
+
+async function sendAnswer() {
+  const word = findWordAtCursor();
+  if (!word) {
+    return;
+  }
+  if (word) {
+    console.log("Answer sent:", word);
+    // Aqui você pode adicionar a lógica para verificar a resposta
+    const response = await checkWord(word);
+    console.log("Response from server:", response);
   }
 }
 
@@ -526,14 +543,14 @@ function generateColumns() {
   background-color: #00ff00;
   color: #000;
   font-weight: bold;
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+  box-shadow: 0 0 4px rgba(0, 255, 0, 0.8);
 }
 
 .char.word-highlight {
   background-color: #00ff00;
   color: #000;
   font-weight: bold;
-  box-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+  box-shadow: 0 0 4px rgba(0, 255, 0, 0.8);
 }
 
 /* .code-selectable.active {

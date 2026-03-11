@@ -10,7 +10,11 @@ export function getWords() {
 }
 
 export function checkWord(word: string) {
-  return api.post(`/answer?answer=${word}`, {
-    headers: { "x-token": token },
-  });
+  return api.post(
+    `/answer?answer=${word}`,
+    {},
+    {
+      headers: { "x-token": token },
+    },
+  );
 }
