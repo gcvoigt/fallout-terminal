@@ -101,6 +101,7 @@ function findWordAtCursor() {
 
   if (word.length < wordLength) {
     const nextLine = currentLines[cursorRow.value + 1];
+    const prevLine = currentLines[cursorRow.value - 1];
     if (nextLine) {
       let nextStart = 0;
       while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
@@ -109,11 +110,24 @@ function findWordAtCursor() {
       const nextWord = nextLine.slice(0, nextStart).join("");
       word = word + nextWord;
     }
+    if (prevLine) {
+      let prevEnd = prevLine.length - 1;
+      while (prevEnd >= 0 && isLetter(prevLine[prevEnd])) {
+        prevEnd--;
+      }
+      const prevWord = prevLine.slice(prevEnd + 1).join("");
+      word = prevWord + word;
+    }
   }
 
   console.log("Word at cursor:", word);
   return word.trim() || null;
 }
+
+const selectedWord = computed(() => {
+  const word = findWordAtCursor();
+  return word;
+});
 
 function findSecurityGaps(char, row, col) {
   const currentLines =
@@ -461,65 +475,90 @@ function generateColumns() {
 </script>
 
 <template>
-  <div class="terminal-screen">
-    <div class="board-game">
-      <!-- Coluna esquerda -->
-      <div class="code-column">{{ leftMemoryAddresses }}</div>
-      <div
-        class="code-column code-selectable"
-        :class="{ active: selectedCol === 0 }"
-      >
-        <div v-for="(line, row) in leftLines" :key="row" class="code-line">
-          <span
-            v-for="(char, col) in line"
-            :key="`${row}-${col}`"
-            class="char"
-            :class="{
-              cursor:
-                selectedCol === 0 && cursorRow === row && cursorCol === col,
-              'word-highlight': isPositionHighlighted(0, row, col),
-            }"
-          >
-            {{ char }}
-          </span>
+  <div class="terminal-container">
+    <div class="header">
+      <p>Welcome to ROBCO Industries (TM) Termlink</p>
+      <p>Password required</p>
+    </div>
+    <div class="hack-area">
+      <div class="board-game">
+        <!-- Coluna esquerda -->
+        <div class="code-column">{{ leftMemoryAddresses }}</div>
+        <div
+          class="code-column code-selectable"
+          :class="{ active: selectedCol === 0 }"
+        >
+          <div v-for="(line, row) in leftLines" :key="row" class="code-line">
+            <span
+              v-for="(char, col) in line"
+              :key="`${row}-${col}`"
+              class="char"
+              :class="{
+                cursor:
+                  selectedCol === 0 && cursorRow === row && cursorCol === col,
+                'word-highlight': isPositionHighlighted(0, row, col),
+              }"
+            >
+              {{ char }}
+            </span>
+          </div>
+        </div>
+        <!-- Coluna direita -->
+        <div class="code-column">{{ rightMemoryAddresses }}</div>
+        <div
+          class="code-column code-selectable"
+          :class="{ active: selectedCol === 1 }"
+        >
+          <div v-for="(line, row) in rightLines" :key="row" class="code-line">
+            <span
+              v-for="(char, col) in line"
+              :key="`${row}-${col}`"
+              class="char"
+              :class="{
+                cursor:
+                  selectedCol === 1 && cursorRow === row && cursorCol === col,
+                'word-highlight': isPositionHighlighted(1, row, col),
+              }"
+            >
+              {{ char }}
+            </span>
+          </div>
         </div>
       </div>
-      <!-- Coluna direita -->
-      <div class="code-column">{{ rightMemoryAddresses }}</div>
-      <div
-        class="code-column code-selectable"
-        :class="{ active: selectedCol === 1 }"
-      >
-        <div v-for="(line, row) in rightLines" :key="row" class="code-line">
-          <span
-            v-for="(char, col) in line"
-            :key="`${row}-${col}`"
-            class="char"
-            :class="{
-              cursor:
-                selectedCol === 1 && cursorRow === row && cursorCol === col,
-              'word-highlight': isPositionHighlighted(1, row, col),
-            }"
-          >
-            {{ char }}
-          </span>
-        </div>
+      <div class="attempts-info">
+        <p>{{ selectedWord }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.header {
+  margin-bottom: 1rem;
+  font-family: monospace;
+  text-align: left;
+  padding: 1rem;
+  & p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
 .board-game {
   display: flex;
   gap: 0.5rem;
+}
+
+.attempts-info {
+  margin-top: 1rem;
+  width: 100px;
+  /*font-size: 1.2rem;*/
 }
 
 .code-column {
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: break-word;
-  font-family: monospace;
 }
 
 .code-selectable {

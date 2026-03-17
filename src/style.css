@@ -50,13 +50,25 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-.terminal-screen {
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
   background-color: #1a1a1a;
   color: #00ff00;
-  padding: 1rem;
+  min-height: auto;
+  letter-spacing: 0.05em;
   border-radius: 8px;
+}
+
+.hack-area {
+  padding: 1rem;
   text-align: left;
   font-size: 1.2em;
+  font-family: monospace;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 #app {
