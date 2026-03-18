@@ -400,6 +400,7 @@ function handleKeyDown(e) {
       e.preventDefault();
       break;
     case "Enter":
+      inputedWords();
       sendAnswer();
       e.preventDefault();
       break;
@@ -420,7 +421,7 @@ async function sendAnswer() {
     console.log("Answer sent:", word);
     // Aqui você pode adicionar a lógica para verificar a resposta
     const response = await checkWord(word);
-    console.log("Response from server:", response);
+    return inputedWordHandler(response.data);
   }
 }
 
@@ -471,6 +472,21 @@ function generateColumns() {
   }
   console.log("Left Column:", leftColumn.value);
   console.log("Right Column:", rightColumn.value);
+}
+
+let inputList = [];
+
+function inputedWords() {
+  if (selectedWord.value) {
+    inputList.push(`>${selectedWord.value}`);
+  }
+}
+
+function inputedWordHandler(data) {
+  // Aqui você pode adicionar a lógica para verificar as palavras digitadas
+  if (data.result === "wrong") {
+    inputList.push(">Entry denied", `>Likeness=${data.likeness}`);
+  }
 }
 </script>
 
@@ -526,7 +542,9 @@ function generateColumns() {
         </div>
       </div>
       <div class="attempts-info">
-        <p>{{ selectedWord }}</p>
+        <p v-for="word in inputList" :key="word">
+          {{ word }}
+        </p>
       </div>
     </div>
   </div>
@@ -551,7 +569,12 @@ function generateColumns() {
 
 .attempts-info {
   margin-top: 1rem;
-  width: 100px;
+  width: 130px;
+  line-height: 1.2em;
+  & p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
   /*font-size: 1.2rem;*/
 }
 
