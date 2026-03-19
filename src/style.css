@@ -67,7 +67,7 @@ button:focus-visible {
   font-size: 1.2em;
   font-family: monospace;
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 1rem;
 }
 

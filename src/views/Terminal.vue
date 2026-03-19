@@ -48,13 +48,25 @@ function findMatchingChar(str, line) {
   if (!matchingChar) return null;
   const aCharPosition = line.indexOf(str);
   const bCharPosition = line.indexOf(matchingChar);
+
   if (line.includes(matchingChar) && aCharPosition < bCharPosition) {
+    const allBetweenChars = line
+      .slice(aCharPosition, bCharPosition + 1)
+      .join("");
     for (let i = aCharPosition + 1; i < bCharPosition; i++) {
       if (isLetter(line[i])) {
         // Check for letters between the characters
         return null; // No gap found
       }
     }
+    console.log(
+      "Line:",
+      allBetweenChars,
+      "Looking for:",
+      str,
+      "and",
+      matchingChar,
+    );
     return { start: aCharPosition, end: bCharPosition }; // Gap found, retorna posições
   }
   return null;
@@ -429,7 +441,6 @@ onMounted(async () => {
   const response = await getWords();
   words.value = response.data;
   wordsArray = response.data.words || [];
-  console.log("Words Array:", wordsArray);
   generateColumns();
   window.addEventListener("keydown", handleKeyDown);
 });
@@ -472,6 +483,10 @@ function generateColumns() {
   }
   console.log("Left Column:", leftColumn.value);
   console.log("Right Column:", rightColumn.value);
+}
+
+function findAtCursor() {
+  // Esta função pode ser usada para encontrar a palavra, secutity gaps ou caractere sob o cursor
 }
 
 let inputList = [];
@@ -545,6 +560,7 @@ function inputedWordHandler(data) {
         <p v-for="word in inputList" :key="word">
           {{ word }}
         </p>
+        <p>{{ `>${inputList.length}` }}</p>
       </div>
     </div>
   </div>
@@ -555,6 +571,7 @@ function inputedWordHandler(data) {
   margin-bottom: 1rem;
   font-family: monospace;
   text-align: left;
+  align-items: end;
   padding: 1rem;
   & p {
     margin: 0;
@@ -568,6 +585,9 @@ function inputedWordHandler(data) {
 }
 
 .attempts-info {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   margin-top: 1rem;
   width: 130px;
   line-height: 1.2em;
