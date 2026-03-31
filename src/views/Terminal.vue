@@ -13,6 +13,7 @@ const rightColumn = ref("");
 const cursorRow = ref(0);
 const cursorCol = ref(0);
 const selectedCol = ref(0); // 0=left, 1=right
+let selectedValue = "";
 
 const words = ref([]);
 let wordsArray = [];
@@ -133,6 +134,7 @@ function findWordAtCursor() {
   }
 
   console.log("Word at cursor:", word);
+  selectedValue = word;
   return word.trim() || null;
 }
 
@@ -377,16 +379,13 @@ function handleKeyDown(e) {
       if (!moveToNextWordBoundary("left")) {
         if (cursorCol.value > 0) {
           cursorCol.value--;
-        } else if (cursorRow.value > 0) {
-          cursorRow.value--;
-          cursorCol.value = maxCols - 1;
         } else if (
           selectedCol.value === 1 &&
-          cursorRow.value === 0 &&
+          // cursorRow.value === 0 &&
           cursorCol.value === 0
         ) {
           selectedCol.value = 0; // Pula para coluna esquerda
-          cursorRow.value = maxRows - 1;
+          // cursorRow.value = maxRows - 1;
           cursorCol.value = maxCols - 1;
         }
       }
@@ -396,16 +395,13 @@ function handleKeyDown(e) {
       if (!moveToNextWordBoundary("right")) {
         if (cursorCol.value < maxCols - 1) {
           cursorCol.value++;
-        } else if (cursorRow.value < maxRows - 1) {
-          cursorRow.value++;
-          cursorCol.value = 0;
         } else if (
           selectedCol.value === 0 &&
-          cursorRow.value === maxRows - 1 &&
+          // cursorRow.value === maxRows - 1 &&
           cursorCol.value === maxCols - 1
         ) {
           selectedCol.value = 1; // Pula para coluna direita
-          cursorRow.value = 0;
+          // cursorRow.value = 0;
           cursorCol.value = 0;
         }
       }
@@ -489,18 +485,19 @@ function findAtCursor() {
   // Esta função pode ser usada para encontrar a palavra, secutity gaps ou caractere sob o cursor
 }
 
-let inputList = [];
+let inputList = ref([]);
 
 function inputedWords() {
-  if (selectedWord.value) {
-    inputList.push(`>${selectedWord.value}`);
+  if (selectedWord) {
+    console.log("Word entered:", selectedWord.value);
+    inputList.value.push(`>${selectedWord.value}`);
   }
 }
 
 function inputedWordHandler(data) {
   // Aqui você pode adicionar a lógica para verificar as palavras digitadas
   if (data.result === "wrong") {
-    inputList.push(">Entry denied", `>Likeness=${data.likeness}`);
+    inputList.value.push(">Entry denied", `>Likeness=${data.likeness}`);
   }
 }
 </script>
@@ -560,7 +557,7 @@ function inputedWordHandler(data) {
         <p v-for="word in inputList" :key="word">
           {{ word }}
         </p>
-        <p>{{ `>${inputList.length}` }}</p>
+        <p>{{ `>${selectedValue}` }}</p>
       </div>
     </div>
   </div>
