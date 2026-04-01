@@ -102,7 +102,7 @@ function findWordAtCursor() {
     selectedCol.value === 0 ? leftLines.value : rightLines.value;
   const line = currentLines[cursorRow.value];
   if (!line) return null;
-  if (!isLetter(line[cursorCol.value])) return null; // If cursor is not on a letter, return null
+  if (!isLetter(line[cursorCol.value])) return null;
 
   let start = cursorCol.value;
   let end = cursorCol.value;
@@ -112,18 +112,10 @@ function findWordAtCursor() {
 
   let word = line.slice(start, end).join("");
 
-  if (word.length < wordLength) {
-    const nextLine = currentLines[cursorRow.value + 1];
+  // Expandir para trás APENAS se começar na coluna 0
+  if (start === 0 && cursorRow.value > 0 && word.length < wordLength) {
     const prevLine = currentLines[cursorRow.value - 1];
-    if (nextLine) {
-      let nextStart = 0;
-      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
-        nextStart++;
-      }
-      const nextWord = nextLine.slice(0, nextStart).join("");
-      word = word + nextWord;
-    }
-    if (prevLine) {
+    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
       let prevEnd = prevLine.length - 1;
       while (prevEnd >= 0 && isLetter(prevLine[prevEnd])) {
         prevEnd--;
@@ -133,9 +125,68 @@ function findWordAtCursor() {
     }
   }
 
+  // Expandir para frente APENAS se acabar na última coluna da linha
+  if (
+    end === line.length &&
+    word.length < wordLength &&
+    cursorRow.value < currentLines.length - 1
+  ) {
+    const nextLine = currentLines[cursorRow.value + 1];
+    if (nextLine && isLetter(nextLine[0])) {
+      let nextStart = 0;
+      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
+        nextStart++;
+      }
+      const nextWord = nextLine.slice(0, nextStart).join("");
+      word = word + nextWord;
+    }
+  }
+
   console.log("Word at cursor:", word);
   selectedValue = word;
   return word.trim() || null;
+}
+
+function getWordBoundariesAtCursor() {
+  const currentLines =
+    selectedCol.value === 0 ? leftLines.value : rightLines.value;
+  const line = currentLines[cursorRow.value];
+  if (!line || !isLetter(line[cursorCol.value])) return null;
+
+  let start = cursorCol.value;
+  let end = cursorCol.value;
+
+  while (start > 0 && isLetter(line[start - 1])) start--;
+  while (end < line.length && isLetter(line[end])) end++;
+
+  let wordStart = { row: cursorRow.value, col: start };
+  let wordEnd = { row: cursorRow.value, col: end };
+
+  // Expandir para trás APENAS se começar na coluna 0
+  if (start === 0 && cursorRow.value > 0) {
+    const prevLine = currentLines[cursorRow.value - 1];
+    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
+      let prevStart = prevLine.length - 1;
+      while (prevStart > 0 && isLetter(prevLine[prevStart - 1])) prevStart--;
+      wordStart = { row: cursorRow.value - 1, col: prevStart };
+    }
+  }
+
+  // Expandir para frente APENAS se acabar na última coluna da linha
+  if (end === line.length && cursorRow.value < currentLines.length - 1) {
+    const nextLine = currentLines[cursorRow.value + 1];
+    if (nextLine && isLetter(nextLine[0])) {
+      let nextStart = 0;
+      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
+        nextStart++;
+      }
+      if (nextStart > 0) {
+        wordEnd = { row: cursorRow.value + 1, col: nextStart };
+      }
+    }
+  }
+
+  return { start: wordStart, end: wordEnd };
 }
 
 const selectedWord = computed(() => {
@@ -156,70 +207,100 @@ function findSecurityGaps(char, row, col) {
   return false;
 }
 
+function getSelectedValue() {
+  const currentLines =
+    selectedCol.value === 0 ? leftLines.value : rightLines.value;
+  const line = currentLines[cursorRow.value];
+  if (!line) return "";
+
+  const char = line[cursorCol.value];
+  if (!char) return "";
+
+  // Se é uma letra, tenta encontrar a palavra completa
+  if (isLetter(char)) {
+    const word = findWordAtCursor();
+    return word || "";
+  }
+
+  // Se é um bracket/chave, verifica se é um security gap
+  const openChars = ["{", "[", "(", "<"];
+  if (openChars.includes(char)) {
+    const matchInfo = findMatchingChar(char, line);
+    if (matchInfo) {
+      const betweenChars = line
+        .slice(matchInfo.start, matchInfo.end + 1)
+        .join("");
+      return betweenChars;
+    }
+  }
+
+  // Caso contrário, retorna apenas o caractere isolado
+  return char;
+}
+
 function getInCurrentWord(col, row, col_pos) {
   const currentLines =
     selectedCol.value === 0 ? leftLines.value : rightLines.value;
 
-  // Se a coluna não corresponde ao cursor, retorna false
   if (selectedCol.value !== col) return false;
 
-  // Se o cursor não está em uma letra, retorna false
   const cursorLine = currentLines[cursorRow.value];
   if (!cursorLine || !isLetter(cursorLine[cursorCol.value])) return false;
 
-  // Encontra o início e fim da palavra na linha do cursor
+  // Encontra o início e fim da palavra a partir do cursor
   let start = cursorCol.value;
   let end = cursorCol.value;
+
   while (start > 0 && isLetter(cursorLine[start - 1])) start--;
   while (end < cursorLine.length && isLetter(cursorLine[end])) end++;
 
   let wordStart = { row: cursorRow.value, col: start };
   let wordEnd = { row: cursorRow.value, col: end };
 
-  // Verificar se a palavra começa na linha anterior
+  // Expandir para trás APENAS se começar na coluna 0
   if (start === 0 && cursorRow.value > 0) {
     const prevLine = currentLines[cursorRow.value - 1];
     if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
-      // Encontra onde começa a palavra na linha anterior
       let prevStart = prevLine.length - 1;
       while (prevStart > 0 && isLetter(prevLine[prevStart - 1])) prevStart--;
       wordStart = { row: cursorRow.value - 1, col: prevStart };
     }
   }
 
-  // Se a palavra tiver menos de 4 caracteres, verifica a próxima linha
-  if (end - start < wordLength) {
+  // Expandir para frente APENAS se a palavra tiver menos de 4 caracteres E sem caracteres depois
+  // (ou seja, a palavra realmente continua na próxima linha e não é truncada)
+  if (
+    end === cursorLine.length &&
+    end - start < wordLength &&
+    cursorRow.value < currentLines.length - 1
+  ) {
     const nextLine = currentLines[cursorRow.value + 1];
-    if (nextLine) {
-      let nextStart = 0;
-      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
-        nextStart++;
+    if (nextLine && isLetter(nextLine[0])) {
+      // Verificar se há continuidade: a próxima linha começa com letra
+      let nextEnd = 0;
+      while (nextEnd < nextLine.length && isLetter(nextLine[nextEnd])) {
+        nextEnd++;
       }
-      if (nextStart > 0) {
-        // A palavra continua na próxima linha
-        wordEnd = { row: cursorRow.value + 1, col: nextStart };
+      // Só incluir se completa a palavra para exatamente 4 caracteres
+      if (end - start + nextEnd === wordLength) {
+        wordEnd = { row: cursorRow.value + 1, col: nextEnd };
       }
     }
   }
 
-  // Verifica se a posição atual (row, col_pos) está dentro da palavra
+  // Resto da lógica igual...
   if (wordStart.row === wordEnd.row) {
-    // Palavra em uma única linha
     return (
       row === wordStart.row && col_pos >= wordStart.col && col_pos < wordEnd.col
     );
   } else {
-    // Palavra quebrada em múltiplas linhas
     if (row === wordStart.row) {
-      // Na primeira linha
       return (
         col_pos >= wordStart.col && col_pos < currentLines[wordStart.row].length
       );
     } else if (row === wordEnd.row) {
-      // Na segunda linha (ou última linha)
       return col_pos < wordEnd.col;
     } else if (row > wordStart.row && row < wordEnd.row) {
-      // Linhas intermediárias (se houver)
       return true;
     }
     return false;
@@ -275,49 +356,6 @@ const rightLines = computed(() => {
   }
   return lines;
 });
-
-function getWordBoundariesAtCursor() {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[cursorRow.value];
-  if (!line || !isLetter(line[cursorCol.value])) return null;
-
-  let start = cursorCol.value;
-  let end = cursorCol.value;
-
-  while (start > 0 && isLetter(line[start - 1])) start--;
-  while (end < line.length && isLetter(line[end])) end++;
-
-  let wordStart = { row: cursorRow.value, col: start };
-  let wordEnd = { row: cursorRow.value, col: end };
-
-  // Verificar se a palavra começa na linha anterior
-  if (start === 0 && cursorRow.value > 0) {
-    const prevLine = currentLines[cursorRow.value - 1];
-    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
-      // Encontra onde começa a palavra na linha anterior
-      let prevStart = prevLine.length - 1;
-      while (prevStart > 0 && isLetter(prevLine[prevStart - 1])) prevStart--;
-      wordStart = { row: cursorRow.value - 1, col: prevStart };
-    }
-  }
-
-  // Se a palavra tiver menos de 4 caracteres, verifica a próxima linha
-  if (end - start < wordLength) {
-    const nextLine = currentLines[cursorRow.value + 1];
-    if (nextLine) {
-      let nextStart = 0;
-      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
-        nextStart++;
-      }
-      if (nextStart > 0) {
-        wordEnd = { row: cursorRow.value + 1, col: nextStart };
-      }
-    }
-  }
-
-  return { start: wordStart, end: wordEnd };
-}
 
 function moveToNextWordBoundary(direction) {
   const currentLines =
@@ -379,13 +417,8 @@ function handleKeyDown(e) {
       if (!moveToNextWordBoundary("left")) {
         if (cursorCol.value > 0) {
           cursorCol.value--;
-        } else if (
-          selectedCol.value === 1 &&
-          // cursorRow.value === 0 &&
-          cursorCol.value === 0
-        ) {
+        } else if (selectedCol.value === 1 && cursorCol.value === 0) {
           selectedCol.value = 0; // Pula para coluna esquerda
-          // cursorRow.value = maxRows - 1;
           cursorCol.value = maxCols - 1;
         }
       }
@@ -395,13 +428,8 @@ function handleKeyDown(e) {
       if (!moveToNextWordBoundary("right")) {
         if (cursorCol.value < maxCols - 1) {
           cursorCol.value++;
-        } else if (
-          selectedCol.value === 0 &&
-          // cursorRow.value === maxRows - 1 &&
-          cursorCol.value === maxCols - 1
-        ) {
+        } else if (selectedCol.value === 0 && cursorCol.value === maxCols - 1) {
           selectedCol.value = 1; // Pula para coluna direita
-          // cursorRow.value = 0;
           cursorCol.value = 0;
         }
       }
@@ -416,7 +444,7 @@ function handleKeyDown(e) {
   const char = selectedChar();
   if (char) {
     findSecurityGaps(char, cursorRow.value, cursorCol.value);
-    findWordAtCursor();
+    selectedValue = getSelectedValue();
   }
 }
 
@@ -473,16 +501,10 @@ function generateColumns() {
         rightColumn.value += wordsArray[indexWords];
         indexWords++;
         markIndex = i;
-        i += 4; // Skip a few characters to avoid overcrowding
+        i += 4;
       }
     }
   }
-  console.log("Left Column:", leftColumn.value);
-  console.log("Right Column:", rightColumn.value);
-}
-
-function findAtCursor() {
-  // Esta função pode ser usada para encontrar a palavra, secutity gaps ou caractere sob o cursor
 }
 
 let inputList = ref([]);
@@ -507,6 +529,9 @@ function inputedWordHandler(data) {
     <div class="header">
       <p>Welcome to ROBCO Industries (TM) Termlink</p>
       <p>Password required</p>
+    </div>
+    <div class="attemps-remaining">
+      <p>Attempts remaining: 4</p>
     </div>
     <div class="hack-area">
       <div class="board-game">
@@ -565,11 +590,19 @@ function inputedWordHandler(data) {
 
 <style scoped>
 .header {
-  margin-bottom: 1rem;
   font-family: monospace;
   text-align: left;
   align-items: end;
-  padding: 1rem;
+  padding: 1rem 1rem 0.2rem 1rem;
+  & p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
+.attemps-remaining {
+  text-align: left;
+  padding: 0 1rem;
   & p {
     margin: 0;
     font-size: 0.9rem;
@@ -631,8 +664,4 @@ function inputedWordHandler(data) {
   font-weight: bold;
   box-shadow: 0 0 4px rgba(0, 255, 0, 0.8);
 }
-
-/* .code-selectable.active {
-  border: 1px solid #00ff00;
-} */
 </style>

@@ -62,7 +62,7 @@ button:focus-visible {
 }
 
 .hack-area {
-  padding: 1rem;
+  padding: 0.5rem 1rem 1rem 1rem;
   text-align: left;
   font-size: 1.2em;
   font-family: monospace;
