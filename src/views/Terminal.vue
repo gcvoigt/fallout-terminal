@@ -1,527 +1,13 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
-import { getWords, checkWord } from "../services/apiWords";
-import { specialCharacters } from "../constants/special_chars";
-import { memoryAddresses } from "../constants/memory_address";
-import { getRandomNumber } from "../utils/utils";
+import { onMounted } from "vue";
+import { useTerminalStore } from "../stores/terminalStore";
 
-const totalchars = 384;
-const wordLength = 4;
-let indexWords = 0;
-const leftColumn = ref("");
-const rightColumn = ref("");
-const cursorRow = ref(0);
-const cursorCol = ref(0);
-const selectedCol = ref(0); // 0=left, 1=right
-let selectedValue = "";
-
-const words = ref([]);
-let wordsArray = [];
-const allWordsMap = ref(new Map()); // Mapeia posições de todas as palavras
-
-const isLetter = (char) => /[a-zA-Z]/.test(char);
-
-function selectedChar() {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[cursorRow.value];
-  if (!line) return null;
-  return line[cursorCol.value] || null;
-}
-
-function counterChar(str) {
-  switch (str) {
-    case "{":
-      return "}";
-    case "[":
-      return "]";
-    case "(":
-      return ")";
-    case "<":
-      return ">";
-    default:
-      return null;
-  }
-}
-
-function findMatchingChar(str, line) {
-  const matchingChar = counterChar(str);
-  if (!matchingChar) return null;
-  const aCharPosition = line.indexOf(str);
-  const bCharPosition = line.indexOf(matchingChar);
-
-  if (line.includes(matchingChar) && aCharPosition < bCharPosition) {
-    const allBetweenChars = line
-      .slice(aCharPosition, bCharPosition + 1)
-      .join("");
-    for (let i = aCharPosition + 1; i < bCharPosition; i++) {
-      if (isLetter(line[i])) {
-        // Check for letters between the characters
-        return null; // No gap found
-      }
-    }
-    console.log(
-      "Line:",
-      allBetweenChars,
-      "Looking for:",
-      str,
-      "and",
-      matchingChar,
-    );
-    return { start: aCharPosition, end: bCharPosition }; // Gap found, retorna posições
-  }
-  return null;
-}
-
-function checkHighlightBrackets(col, row, col_pos) {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[row];
-  if (!line || selectedCol.value !== col) return false;
-
-  // Se o cursor está em um caractere de abertura
-  const char = line[cursorCol.value];
-  const openChars = ["{", "[", "(", "<"];
-
-  if (openChars.includes(char)) {
-    const matchInfo = findMatchingChar(char, line);
-    if (matchInfo) {
-      // Destacar caracteres entre aCharPosition e bCharPosition (inclusive)
-      return (
-        col_pos >= matchInfo.start &&
-        col_pos <= matchInfo.end &&
-        cursorRow.value === row
-      );
-    }
-  }
-  return false;
-}
-
-function findWordAtCursor() {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[cursorRow.value];
-  if (!line) return null;
-  if (!isLetter(line[cursorCol.value])) return null;
-
-  let start = cursorCol.value;
-  let end = cursorCol.value;
-
-  while (start > 0 && isLetter(line[start - 1])) start--;
-  while (end < line.length && isLetter(line[end])) end++;
-
-  let word = line.slice(start, end).join("");
-
-  // Expandir para trás APENAS se começar na coluna 0
-  if (start === 0 && cursorRow.value > 0 && word.length < wordLength) {
-    const prevLine = currentLines[cursorRow.value - 1];
-    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
-      let prevEnd = prevLine.length - 1;
-      while (prevEnd >= 0 && isLetter(prevLine[prevEnd])) {
-        prevEnd--;
-      }
-      const prevWord = prevLine.slice(prevEnd + 1).join("");
-      word = prevWord + word;
-    }
-  }
-
-  // Expandir para frente APENAS se acabar na última coluna da linha
-  if (
-    end === line.length &&
-    word.length < wordLength &&
-    cursorRow.value < currentLines.length - 1
-  ) {
-    const nextLine = currentLines[cursorRow.value + 1];
-    if (nextLine && isLetter(nextLine[0])) {
-      let nextStart = 0;
-      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
-        nextStart++;
-      }
-      const nextWord = nextLine.slice(0, nextStart).join("");
-      word = word + nextWord;
-    }
-  }
-
-  console.log("Word at cursor:", word);
-  selectedValue = word;
-  return word.trim() || null;
-}
-
-function getWordBoundariesAtCursor() {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[cursorRow.value];
-  if (!line || !isLetter(line[cursorCol.value])) return null;
-
-  let start = cursorCol.value;
-  let end = cursorCol.value;
-
-  while (start > 0 && isLetter(line[start - 1])) start--;
-  while (end < line.length && isLetter(line[end])) end++;
-
-  let wordStart = { row: cursorRow.value, col: start };
-  let wordEnd = { row: cursorRow.value, col: end };
-
-  // Expandir para trás APENAS se começar na coluna 0
-  if (start === 0 && cursorRow.value > 0) {
-    const prevLine = currentLines[cursorRow.value - 1];
-    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
-      let prevStart = prevLine.length - 1;
-      while (prevStart > 0 && isLetter(prevLine[prevStart - 1])) prevStart--;
-      wordStart = { row: cursorRow.value - 1, col: prevStart };
-    }
-  }
-
-  // Expandir para frente APENAS se acabar na última coluna da linha
-  if (end === line.length && cursorRow.value < currentLines.length - 1) {
-    const nextLine = currentLines[cursorRow.value + 1];
-    if (nextLine && isLetter(nextLine[0])) {
-      let nextStart = 0;
-      while (nextStart < nextLine.length && isLetter(nextLine[nextStart])) {
-        nextStart++;
-      }
-      if (nextStart > 0) {
-        wordEnd = { row: cursorRow.value + 1, col: nextStart };
-      }
-    }
-  }
-
-  return { start: wordStart, end: wordEnd };
-}
-
-const selectedWord = computed(() => {
-  const word = findWordAtCursor();
-  return word;
-});
-
-function findSecurityGaps(char, row, col) {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[row];
-  if (!line) return false;
-
-  const matchResult = findMatchingChar(char, currentLines[row]);
-  if (matchResult) {
-    return true;
-  }
-  return false;
-}
-
-function getSelectedValue() {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const line = currentLines[cursorRow.value];
-  if (!line) return "";
-
-  const char = line[cursorCol.value];
-  if (!char) return "";
-
-  // Se é uma letra, tenta encontrar a palavra completa
-  if (isLetter(char)) {
-    const word = findWordAtCursor();
-    return word || "";
-  }
-
-  // Se é um bracket/chave, verifica se é um security gap
-  const openChars = ["{", "[", "(", "<"];
-  if (openChars.includes(char)) {
-    const matchInfo = findMatchingChar(char, line);
-    if (matchInfo) {
-      const betweenChars = line
-        .slice(matchInfo.start, matchInfo.end + 1)
-        .join("");
-      return betweenChars;
-    }
-  }
-
-  // Caso contrário, retorna apenas o caractere isolado
-  return char;
-}
-
-function getInCurrentWord(col, row, col_pos) {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-
-  if (selectedCol.value !== col) return false;
-
-  const cursorLine = currentLines[cursorRow.value];
-  if (!cursorLine || !isLetter(cursorLine[cursorCol.value])) return false;
-
-  // Encontra o início e fim da palavra a partir do cursor
-  let start = cursorCol.value;
-  let end = cursorCol.value;
-
-  while (start > 0 && isLetter(cursorLine[start - 1])) start--;
-  while (end < cursorLine.length && isLetter(cursorLine[end])) end++;
-
-  let wordStart = { row: cursorRow.value, col: start };
-  let wordEnd = { row: cursorRow.value, col: end };
-
-  // Expandir para trás APENAS se começar na coluna 0
-  if (start === 0 && cursorRow.value > 0) {
-    const prevLine = currentLines[cursorRow.value - 1];
-    if (prevLine && isLetter(prevLine[prevLine.length - 1])) {
-      let prevStart = prevLine.length - 1;
-      while (prevStart > 0 && isLetter(prevLine[prevStart - 1])) prevStart--;
-      wordStart = { row: cursorRow.value - 1, col: prevStart };
-    }
-  }
-
-  // Expandir para frente APENAS se a palavra tiver menos de 4 caracteres E sem caracteres depois
-  // (ou seja, a palavra realmente continua na próxima linha e não é truncada)
-  if (
-    end === cursorLine.length &&
-    end - start < wordLength &&
-    cursorRow.value < currentLines.length - 1
-  ) {
-    const nextLine = currentLines[cursorRow.value + 1];
-    if (nextLine && isLetter(nextLine[0])) {
-      // Verificar se há continuidade: a próxima linha começa com letra
-      let nextEnd = 0;
-      while (nextEnd < nextLine.length && isLetter(nextLine[nextEnd])) {
-        nextEnd++;
-      }
-      // Só incluir se completa a palavra para exatamente 4 caracteres
-      if (end - start + nextEnd === wordLength) {
-        wordEnd = { row: cursorRow.value + 1, col: nextEnd };
-      }
-    }
-  }
-
-  // Resto da lógica igual...
-  if (wordStart.row === wordEnd.row) {
-    return (
-      row === wordStart.row && col_pos >= wordStart.col && col_pos < wordEnd.col
-    );
-  } else {
-    if (row === wordStart.row) {
-      return (
-        col_pos >= wordStart.col && col_pos < currentLines[wordStart.row].length
-      );
-    } else if (row === wordEnd.row) {
-      return col_pos < wordEnd.col;
-    } else if (row > wordStart.row && row < wordEnd.row) {
-      return true;
-    }
-    return false;
-  }
-}
-
-function isPositionHighlighted(col, row, col_pos) {
-  // Primeiro verifica se está em uma palavra
-  if (getInCurrentWord(col, row, col_pos)) {
-    return true;
-  }
-  // Depois verifica se está em um par de brackets/chaves
-  if (checkHighlightBrackets(col, row, col_pos)) {
-    return true;
-  }
-  return false;
-}
-
-const leftColumnFormatted = computed(() => {
-  return leftColumn.value.replace(/(.{12})/g, "$1\n");
-});
-
-const rightColumnFormatted = computed(() => {
-  return rightColumn.value.replace(/(.{12})/g, "$1\n");
-});
-
-const leftMemoryAddresses = computed(() => {
-  return memoryAddresses
-    .slice(0, memoryAddresses.length / 2)
-    .map((addr, idx) => addr)
-    .join("\n");
-});
-
-const rightMemoryAddresses = computed(() => {
-  return memoryAddresses
-    .slice(memoryAddresses.length / 2)
-    .map((addr, idx) => addr)
-    .join("\n");
-});
-
-const leftLines = computed(() => {
-  const lines = [];
-  for (let i = 0; i < leftColumn.value.length; i += 12) {
-    lines.push(leftColumn.value.slice(i, i + 12).split(""));
-  }
-  return lines;
-});
-
-const rightLines = computed(() => {
-  const lines = [];
-  for (let i = 0; i < rightColumn.value.length; i += 12) {
-    lines.push(rightColumn.value.slice(i, i + 12).split(""));
-  }
-  return lines;
-});
-
-function moveToNextWordBoundary(direction) {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const maxRows = currentLines.length;
-  const maxCols = 12;
-
-  const char = selectedChar();
-  if (!char || !isLetter(char)) return false;
-
-  const boundaries = getWordBoundariesAtCursor();
-  if (!boundaries) return false;
-
-  const { start, end } = boundaries;
-
-  if (direction === "right") {
-    // Move para o próximo caractere após a palavra
-    if (end.col < maxCols) {
-      cursorRow.value = end.row;
-      cursorCol.value = end.col;
-      return true;
-    } else if (end.row < maxRows - 1) {
-      cursorRow.value = end.row + 1;
-      cursorCol.value = 0;
-      return true;
-    }
-  } else if (direction === "left") {
-    // Move para o caractere antes da palavra
-    if (start.col > 0) {
-      cursorRow.value = start.row;
-      cursorCol.value = start.col - 1;
-      return true;
-    } else if (start.row > 0) {
-      cursorRow.value = start.row - 1;
-      cursorCol.value = maxCols - 1;
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function handleKeyDown(e) {
-  const currentLines =
-    selectedCol.value === 0 ? leftLines.value : rightLines.value;
-  const maxRows = currentLines.length;
-  const maxCols = 12;
-
-  switch (e.key) {
-    case "ArrowUp":
-      if (cursorRow.value > 0) cursorRow.value--;
-      e.preventDefault();
-      break;
-    case "ArrowDown":
-      if (cursorRow.value < maxRows - 1) cursorRow.value++;
-      e.preventDefault();
-      break;
-    case "ArrowLeft":
-      if (!moveToNextWordBoundary("left")) {
-        if (cursorCol.value > 0) {
-          cursorCol.value--;
-        } else if (selectedCol.value === 1 && cursorCol.value === 0) {
-          selectedCol.value = 0; // Pula para coluna esquerda
-          cursorCol.value = maxCols - 1;
-        }
-      }
-      e.preventDefault();
-      break;
-    case "ArrowRight":
-      if (!moveToNextWordBoundary("right")) {
-        if (cursorCol.value < maxCols - 1) {
-          cursorCol.value++;
-        } else if (selectedCol.value === 0 && cursorCol.value === maxCols - 1) {
-          selectedCol.value = 1; // Pula para coluna direita
-          cursorCol.value = 0;
-        }
-      }
-      e.preventDefault();
-      break;
-    case "Enter":
-      inputedWords();
-      sendAnswer();
-      e.preventDefault();
-      break;
-  }
-  const char = selectedChar();
-  if (char) {
-    findSecurityGaps(char, cursorRow.value, cursorCol.value);
-    selectedValue = getSelectedValue();
-  }
-}
-
-async function sendAnswer() {
-  const word = findWordAtCursor();
-  if (!word) {
-    return;
-  }
-  if (word) {
-    console.log("Answer sent:", word);
-    // Aqui você pode adicionar a lógica para verificar a resposta
-    const response = await checkWord(word);
-    return inputedWordHandler(response.data);
-  }
-}
+const store = useTerminalStore();
 
 onMounted(async () => {
-  const response = await getWords();
-  words.value = response.data;
-  wordsArray = response.data.words || [];
-  generateColumns();
-  window.addEventListener("keydown", handleKeyDown);
+  await store.initializeGame();
+  window.addEventListener("keydown", store.handleKeyDown);
 });
-
-function generateColumns() {
-  let markIndex = 0;
-  for (let i = 0; i < totalchars / 2; i++) {
-    leftColumn.value +=
-      specialCharacters[getRandomNumber(0, specialCharacters.length - 1)];
-    if (
-      indexWords < wordsArray.length &&
-      Math.random() < 0.05 &&
-      i < totalchars / 2 - 4
-    ) {
-      // 5% chance to add a word
-      if (i - markIndex > 10) {
-        leftColumn.value += wordsArray[indexWords];
-        indexWords++;
-        markIndex = i;
-        i += 4; // Skip a few characters to avoid overcrowding
-      }
-    }
-  }
-  markIndex = 0;
-  for (let i = 0; i < totalchars / 2; i++) {
-    rightColumn.value +=
-      specialCharacters[getRandomNumber(0, specialCharacters.length - 1)];
-    if (
-      indexWords < wordsArray.length &&
-      Math.random() < 0.05 &&
-      i < totalchars / 2 - 4
-    ) {
-      if (i - markIndex > 10) {
-        rightColumn.value += wordsArray[indexWords];
-        indexWords++;
-        markIndex = i;
-        i += 4;
-      }
-    }
-  }
-}
-
-let inputList = ref([]);
-
-function inputedWords() {
-  if (selectedWord) {
-    console.log("Word entered:", selectedWord.value);
-    inputList.value.push(`>${selectedWord.value}`);
-  }
-}
-
-function inputedWordHandler(data) {
-  // Aqui você pode adicionar a lógica para verificar as palavras digitadas
-  if (data.result === "wrong") {
-    inputList.value.push(">Entry denied", `>Likeness=${data.likeness}`);
-  }
-}
 </script>
 
 <template>
@@ -536,20 +22,26 @@ function inputedWordHandler(data) {
     <div class="hack-area">
       <div class="board-game">
         <!-- Coluna esquerda -->
-        <div class="code-column">{{ leftMemoryAddresses }}</div>
+        <div class="code-column">{{ store.leftMemoryAddresses }}</div>
         <div
           class="code-column code-selectable"
-          :class="{ active: selectedCol === 0 }"
+          :class="{ active: store.selectedCol === 0 }"
         >
-          <div v-for="(line, row) in leftLines" :key="row" class="code-line">
+          <div
+            v-for="(line, row) in store.leftLines"
+            :key="row"
+            class="code-line"
+          >
             <span
               v-for="(char, col) in line"
               :key="`${row}-${col}`"
               class="char"
               :class="{
                 cursor:
-                  selectedCol === 0 && cursorRow === row && cursorCol === col,
-                'word-highlight': isPositionHighlighted(0, row, col),
+                  store.selectedCol === 0 &&
+                  store.cursorRow === row &&
+                  store.cursorCol === col,
+                'word-highlight': store.isPositionHighlighted(0, row, col),
               }"
             >
               {{ char }}
@@ -557,20 +49,26 @@ function inputedWordHandler(data) {
           </div>
         </div>
         <!-- Coluna direita -->
-        <div class="code-column">{{ rightMemoryAddresses }}</div>
+        <div class="code-column">{{ store.rightMemoryAddresses }}</div>
         <div
           class="code-column code-selectable"
-          :class="{ active: selectedCol === 1 }"
+          :class="{ active: store.selectedCol === 1 }"
         >
-          <div v-for="(line, row) in rightLines" :key="row" class="code-line">
+          <div
+            v-for="(line, row) in store.rightLines"
+            :key="row"
+            class="code-line"
+          >
             <span
               v-for="(char, col) in line"
               :key="`${row}-${col}`"
               class="char"
               :class="{
                 cursor:
-                  selectedCol === 1 && cursorRow === row && cursorCol === col,
-                'word-highlight': isPositionHighlighted(1, row, col),
+                  store.selectedCol === 1 &&
+                  store.cursorRow === row &&
+                  store.cursorCol === col,
+                'word-highlight': store.isPositionHighlighted(1, row, col),
               }"
             >
               {{ char }}
@@ -579,10 +77,10 @@ function inputedWordHandler(data) {
         </div>
       </div>
       <div class="attempts-info">
-        <p v-for="word in inputList" :key="word">
+        <p v-for="word in store.inputList" :key="word">
           {{ word }}
         </p>
-        <p>{{ `>${selectedValue}` }}</p>
+        <p>{{ `>${store.selectedValue}` }}</p>
       </div>
     </div>
   </div>
