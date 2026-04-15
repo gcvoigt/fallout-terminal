@@ -8,6 +8,7 @@ import { getRandomNumber } from "../utils/utils";
 const TOTAL_CHARS = 384;
 const WORD_LENGTH = 4;
 const MAX_COLS = 12;
+const MAX_ATTEMPS = 5;
 
 export const useTerminalStore = defineStore("terminal", () => {
   // ============ STATE ============
@@ -21,6 +22,7 @@ export const useTerminalStore = defineStore("terminal", () => {
   const words = ref([]);
   let wordsArray: string[] = [];
   let indexWords = 0;
+  const numAttemps = ref(MAX_ATTEMPS);
 
   const inputList = ref<string[]>([]);
 
@@ -469,6 +471,13 @@ export const useTerminalStore = defineStore("terminal", () => {
     }
     console.log("Answer sent:", word);
     const response = await checkWord(word);
+    numAttemps.value--;
+
+    if (numAttemps.value <= 0) {
+      // fazer a lógica de bloqueio do sistema aqui, como mostrar uma mensagem ou desabilitar a entrada
+      inputList.value.push(">System locked");
+      return;
+    }
     return inputedWordHandler(response.data);
   };
 
@@ -489,6 +498,7 @@ export const useTerminalStore = defineStore("terminal", () => {
     rightColumn,
     words,
     inputList,
+    numAttemps,
 
     // Getters
     leftLines,

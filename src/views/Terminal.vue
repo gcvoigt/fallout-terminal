@@ -17,7 +17,7 @@ onMounted(async () => {
       <p>Password required</p>
     </div>
     <div class="attemps-remaining">
-      <p>Attempts remaining: 4</p>
+      <p>Attempts remaining: {{ store.numAttemps }}</p>
     </div>
     <div class="hack-area">
       <div class="board-game">
